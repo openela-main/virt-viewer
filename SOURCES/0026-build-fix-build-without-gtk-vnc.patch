@@ -1,0 +1,54 @@
+From 81129f8eb11e86ccc9329b5a7cb4e319a4db7e04 Mon Sep 17 00:00:00 2001
+From: Victor Toso <victortoso@redhat.com>
+Date: Mon, 8 Mar 2021 16:52:06 +0100
+Subject: [PATCH] build: fix build without gtk-vnc
+
+Without gtk-vnc we get implicit function declaration for
+VIRT_VIEWER_IS_SESSION_VNC. Introduced at 8bc91ac "session: remove
+"session-error" signal" in 2021-02-18
+
+As we are already using #ifdef here, I've also changed the ternary to
+an if for clarity.
+
+Signed-off-by: Victor Toso <victortoso@redhat.com>
+---
+ src/virt-viewer-app.c | 16 ++++++++++++----
+ 1 file changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/src/virt-viewer-app.c b/src/virt-viewer-app.c
+index 5d3b395..b20d11a 100644
+--- a/src/virt-viewer-app.c
++++ b/src/virt-viewer-app.c
+@@ -748,8 +748,12 @@ static void hide_one_window(gpointer value,
+ {
+     VirtViewerApp* self = VIRT_VIEWER_APP(user_data);
+     VirtViewerAppPrivate *priv = self->priv;
+-    gboolean connect_error = !priv->cancelled &&
+-        !(VIRT_VIEWER_IS_SESSION_VNC(priv->session) ? priv->initialized : priv->connected);
++    gboolean connect_error = !priv->cancelled && !priv->connected;
++#ifdef HAVE_GTK_VNC
++    if (VIRT_VIEWER_IS_SESSION_VNC(priv->session)) {
++        connect_error = !priv->cancelled && !priv->initialized;
++    }
++#endif
+ 
+     if (connect_error || self->priv->main_window != value)
+         virt_viewer_window_hide(VIRT_VIEWER_WINDOW(value));
+@@ -1773,8 +1777,12 @@ virt_viewer_app_disconnected(VirtViewerSession *session G_GNUC_UNUSED, const gch
+                              VirtViewerApp *self)
+ {
+     VirtViewerAppPrivate *priv = self->priv;
+-    gboolean connect_error = !priv->cancelled &&
+-        !(VIRT_VIEWER_IS_SESSION_VNC(session) ? priv->initialized : priv->connected);
++    gboolean connect_error = !priv->cancelled && !priv->connected;
++#ifdef HAVE_GTK_VNC
++    if (VIRT_VIEWER_IS_SESSION_VNC(priv->session)) {
++        connect_error = !priv->cancelled && !priv->initialized;
++    }
++#endif
+ 
+     if (!priv->kiosk)
+         virt_viewer_app_hide_all_windows(self);
+-- 
+2.29.2
+

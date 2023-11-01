@@ -1,0 +1,62 @@
+From 74fdd26c949847bca41c7ca71bc88d30d92d92aa Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Sun, 17 Jan 2021 19:25:57 +0200
+Subject: [PATCH] vnc: no dialog for server-closed-connection error
+
+Following commit de5cd71, when the server closes the connection
+(likely when qemu-kvm exits), a dialog is shown to the user.
+
+This behavior change is not good for automatic tests that expect
+virt-viewer to exit without any dialog.
+
+This patch makes sure no dialog is shown for this error, by
+checking if the VNC connection was already initialized.
+
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ src/virt-viewer-app.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/src/virt-viewer-app.c b/src/virt-viewer-app.c
+index 8d795ca..4a579f8 100644
+--- a/src/virt-viewer-app.c
++++ b/src/virt-viewer-app.c
+@@ -139,6 +139,7 @@ struct _VirtViewerAppPrivate {
+     gboolean kiosk;
+     gboolean vm_ui;
+     gboolean vm_running;
++    gboolean initialized;
+ 
+     VirtViewerSession *session;
+     gboolean active;
+@@ -1651,6 +1652,7 @@ virt_viewer_app_deactivate(VirtViewerApp *self, gboolean connect_error)
+         virt_viewer_session_close(VIRT_VIEWER_SESSION(priv->session));
+     }
+ 
++    priv->initialized = FALSE;
+     priv->connected = FALSE;
+     priv->active = FALSE;
+     priv->started = FALSE;
+@@ -1689,6 +1691,7 @@ static void
+ virt_viewer_app_initialized(VirtViewerSession *session G_GNUC_UNUSED,
+                             VirtViewerApp *self)
+ {
++    self->priv->initialized = TRUE;
+     virt_viewer_app_update_title(self);
+ }
+ 
+@@ -1727,7 +1730,10 @@ virt_viewer_app_error(VirtViewerSession *session G_GNUC_UNUSED,
+ {
+     VirtViewerAppPrivate *priv = self->priv;
+ 
+-    priv->connected = FALSE; /* display error dialog */
++    /* Do not open a dialog if the connection was initialized
++     * This happens when the VNC server closes the connection */
++    if (!priv->initialized)
++        priv->connected = FALSE; /* display error dialog */
+ 
+     virt_viewer_app_disconnected(session, msg, self);
+ }
+-- 
+2.29.2
+

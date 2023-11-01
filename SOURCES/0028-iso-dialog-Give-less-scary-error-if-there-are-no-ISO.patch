@@ -1,0 +1,30 @@
+From ff11d5937ef2681f1b2bd58d9bea5854f7ff3c9a Mon Sep 17 00:00:00 2001
+From: Frediano Ziglio <freddy77@gmail.com>
+Date: Thu, 9 Jul 2020 14:27:02 +0100
+Subject: [PATCH] iso-dialog: Give less scary error if there are no ISOs
+
+Instead of a fail simply reply that there are no ISO files.
+
+Message text was suggested by Radek Duda who reported the issue.
+
+Signed-off-by: Frediano Ziglio <freddy77@gmail.com>
+---
+ src/remote-viewer-iso-list-dialog.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/remote-viewer-iso-list-dialog.c b/src/remote-viewer-iso-list-dialog.c
+index c6fbe50..c7ee051 100644
+--- a/src/remote-viewer-iso-list-dialog.c
++++ b/src/remote-viewer-iso-list-dialog.c
+@@ -153,7 +153,7 @@ fetch_iso_names_cb(OvirtForeignMenu *foreign_menu,
+     iso_list = ovirt_foreign_menu_fetch_iso_names_finish(foreign_menu, result, &error);
+ 
+     if (!iso_list) {
+-        const gchar *msg = error ? error->message : _("Failed to fetch CD names");
++        const gchar *msg = error ? error->message : _("No ISO files in domain");
+         gchar *markup = g_strdup_printf("<b>%s</b>", msg);
+ 
+         g_debug("Error fetching ISO names: %s", msg);
+-- 
+2.31.1
+

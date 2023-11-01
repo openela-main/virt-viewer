@@ -1,0 +1,103 @@
+From 0a16fd513034c2a1475ed84b38461faea7a12250 Mon Sep 17 00:00:00 2001
+From: "Eduardo Lima (Etrunko)" <etrunko@redhat.com>
+Date: Thu, 25 Jun 2020 21:19:32 -0300
+Subject: [PATCH virt-viewer] ovirt-foreign-menu: Use proper function in the
+ case of DATA StorageDomains
+
+Unlike the StorageDomain objects of ISO type, the DATA ones require a
+specific API recently added to libgovirt to support them. This commit
+makes use of those new functions under #ifdef guards and adds proper a
+check to configure.ac.
+
+Related: https://bugzilla.redhat.com/show_bug.cgi?id=1847223
+
+Signed-off-by: Eduardo Lima (Etrunko) <etrunko@redhat.com>
+---
+ configure.ac             |  2 +-
+ src/ovirt-foreign-menu.c | 36 ++++++++++++++++++++++++++++++++++--
+ 2 files changed, 35 insertions(+), 3 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 9da056f..a313ce1 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -203,7 +203,7 @@ AS_IF([test "x$with_ovirt" = "xyes"],
+        SAVED_LIBS="$LIBS"
+        CFLAGS="$SAVED_CFLAGS $OVIRT_CFLAGS"
+        LIBS="$SAVED_LIBS $OVIRT_LIBS"
+-       AC_CHECK_FUNCS([ovirt_api_search_vms ovirt_vm_get_host ovirt_host_get_cluster ovirt_cluster_get_data_center],
++       AC_CHECK_FUNCS([ovirt_api_search_vms ovirt_vm_get_host ovirt_host_get_cluster ovirt_cluster_get_data_center ovirt_storage_domain_get_disks],
+                       [AC_DEFINE([HAVE_OVIRT_DATA_CENTER], 1, [Have support for data center])],
+                       []
+                       )
+diff --git a/src/ovirt-foreign-menu.c b/src/ovirt-foreign-menu.c
+index c31c93f..3c67f1a 100644
+--- a/src/ovirt-foreign-menu.c
++++ b/src/ovirt-foreign-menu.c
+@@ -481,6 +481,18 @@ static void ovirt_foreign_menu_set_files(OvirtForeignMenu *menu,
+     for (it = files; it != NULL; it = it->next) {
+         char *name;
+         g_object_get(it->data, "name", &name, NULL);
++
++#ifdef HAVE_OVIRT_STORAGE_DOMAIN_GET_DISKS
++        if (OVIRT_IS_DISK(it->data)) {
++            OvirtDiskContentType content_type;
++            g_object_get(it->data, "content-type", &content_type, NULL);
++            if (content_type != OVIRT_DISK_CONTENT_TYPE_ISO) {
++                g_debug("Ignoring %s disk which content-type is not ISO", name);
++                continue;
++            }
++        }
++#endif
++
+         /* The oVirt REST API is supposed to have a 'type' node
+          * associated with file resources , but as of 3.2, this node
+          * is not present, so we do an extension check instead
+@@ -695,6 +707,26 @@ static gboolean ovirt_foreign_menu_set_file_collection(OvirtForeignMenu *menu, O
+     return TRUE;
+ }
+ 
++static OvirtCollection *storage_domain_get_files(OvirtStorageDomain *domain)
++{
++    OvirtCollection *files = NULL;
++    OvirtStorageDomainType type;
++
++    if (domain == NULL)
++        return NULL;
++
++    g_object_get(domain, "type", &type, NULL);
++
++    if (type == OVIRT_STORAGE_DOMAIN_TYPE_ISO)
++        files = ovirt_storage_domain_get_files(domain);
++#ifdef HAVE_OVIRT_STORAGE_DOMAIN_GET_DISKS
++    else if (type == OVIRT_STORAGE_DOMAIN_TYPE_DATA)
++        files = ovirt_storage_domain_get_disks(domain);
++#endif
++
++    return files;
++}
++
+ static gboolean set_file_collection_from_toplevel_storage_domain(OvirtForeignMenu *menu, OvirtStorageDomain *domain)
+ {
+     gboolean ret = FALSE;
+@@ -716,7 +748,7 @@ static gboolean set_file_collection_from_toplevel_storage_domain(OvirtForeignMen
+         goto end;
+     }
+ 
+-    ret = ovirt_foreign_menu_set_file_collection(menu, ovirt_storage_domain_get_files(OVIRT_STORAGE_DOMAIN(resource)));
++    ret = ovirt_foreign_menu_set_file_collection(menu, storage_domain_get_files(OVIRT_STORAGE_DOMAIN(resource)));
+ 
+ end:
+     g_clear_error(&error);
+@@ -756,7 +788,7 @@ static void storage_domains_fetched_cb(GObject *source_object,
+         if (!domain_valid)
+             domain_valid = TRUE;
+ 
+-        file_collection = ovirt_storage_domain_get_files(domain);
++        file_collection = storage_domain_get_files(domain);
+         if (!ovirt_foreign_menu_set_file_collection(menu, file_collection)) {
+             /* Retry with toplevel storage domain */
+             if (!set_file_collection_from_toplevel_storage_domain(menu, domain))
+-- 
+2.26.2
+

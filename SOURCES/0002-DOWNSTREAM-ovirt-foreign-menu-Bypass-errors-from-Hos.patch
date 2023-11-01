@@ -1,0 +1,146 @@
+From d8dc636c63a3616a938c600487e473a71c67cf96 Mon Sep 17 00:00:00 2001
+From: "Eduardo Lima (Etrunko)" <etrunko@redhat.com>
+Date: Fri, 6 Jul 2018 09:12:18 -0300
+Subject: [PATCH virt-viewer] [DOWNSTREAM] ovirt-foreign-menu: Bypass errors
+ from Host/Cluster/Data Center
+
+When accessing ovirt as a regular user, it may happen that queries to
+Hosts, Clusters and Data Centers return errors due to insufficient
+permissions, while they will work fine if access is done by admin user.
+In this case, we skip the errors and fallback to the old method.
+
+Signed-off-by: Eduardo Lima (Etrunko) <etrunko@redhat.com>
+---
+ src/ovirt-foreign-menu.c | 60 ++++++++++++++++++++++++++++++----------
+ 1 file changed, 46 insertions(+), 14 deletions(-)
+
+diff --git a/src/ovirt-foreign-menu.c b/src/ovirt-foreign-menu.c
+index a849991..dc6ecf4 100644
+--- a/src/ovirt-foreign-menu.c
++++ b/src/ovirt-foreign-menu.c
+@@ -627,12 +627,21 @@ G_GNUC_END_IGNORE_DEPRECATIONS
+ }
+ 
+ static gboolean storage_domain_attached_to_data_center(OvirtStorageDomain *domain,
+-                                                      OvirtDataCenter *data_center)
++                                                       OvirtDataCenter *data_center)
+ {
+     GStrv data_center_ids;
+     char *data_center_guid;
+     gboolean match;
+ 
++    /* For some reason we did not get data center information, so just return
++     * TRUE as it will work like a fallback to old method, where we did not
++     * check relationship between data center and storage domain.
++     */
++    if (data_center == NULL) {
++        g_debug("Could not get data center info, considering storage domain is attached to it");
++        return TRUE;
++    }
++
+     g_object_get(domain, "data-center-ids", &data_center_ids, NULL);
+     g_object_get(data_center, "guid", &data_center_guid, NULL);
+     match = strv_contains((const gchar * const *) data_center_ids, data_center_guid);
+@@ -779,9 +788,11 @@ static void ovirt_foreign_menu_fetch_storage_domain_async(OvirtForeignMenu *menu
+ #ifdef HAVE_OVIRT_DATA_CENTER
+     g_return_if_fail(OVIRT_IS_FOREIGN_MENU(menu));
+     g_return_if_fail(OVIRT_IS_PROXY(menu->priv->proxy));
+-    g_return_if_fail(OVIRT_IS_DATA_CENTER(menu->priv->data_center));
+ 
+-    collection = ovirt_data_center_get_storage_domains(menu->priv->data_center);
++    if (menu->priv->data_center != NULL)
++        collection = ovirt_data_center_get_storage_domains(menu->priv->data_center);
++    else
++        collection = ovirt_api_get_storage_domains(menu->priv->api);
+ #else
+     collection = ovirt_api_get_storage_domains(menu->priv->api);
+ #endif
+@@ -806,9 +817,7 @@ static void data_center_fetched_cb(GObject *source_object,
+     ovirt_resource_refresh_finish(resource, result, &error);
+     if (error != NULL) {
+         g_debug("failed to fetch Data Center: %s", error->message);
+-        g_task_return_error(task, error);
+-        g_object_unref(task);
+-        return;
++        g_clear_error(&error);
+     }
+ 
+     ovirt_foreign_menu_next_async_step(menu, task, STATE_DATA_CENTER);
+@@ -823,6 +832,12 @@ static void ovirt_foreign_menu_fetch_data_center_async(OvirtForeignMenu *menu,
+     g_return_if_fail(OVIRT_IS_CLUSTER(menu->priv->cluster));
+ 
+     menu->priv->data_center = ovirt_cluster_get_data_center(menu->priv->cluster);
++
++    if (menu->priv->data_center == NULL) {
++        ovirt_foreign_menu_next_async_step(menu, task, STATE_DATA_CENTER);
++        return;
++    }
++
+     ovirt_resource_refresh_async(OVIRT_RESOURCE(menu->priv->data_center),
+                                  menu->priv->proxy,
+                                  g_task_get_cancellable(task),
+@@ -843,9 +858,7 @@ static void cluster_fetched_cb(GObject *source_object,
+     ovirt_resource_refresh_finish(resource, result, &error);
+     if (error != NULL) {
+         g_debug("failed to fetch Cluster: %s", error->message);
+-        g_task_return_error(task, error);
+-        g_object_unref(task);
+-        return;
++        g_clear_error(&error);
+     }
+ 
+     ovirt_foreign_menu_next_async_step(menu, task, STATE_CLUSTER);
+@@ -857,9 +870,21 @@ static void ovirt_foreign_menu_fetch_cluster_async(OvirtForeignMenu *menu,
+ {
+     g_return_if_fail(OVIRT_IS_FOREIGN_MENU(menu));
+     g_return_if_fail(OVIRT_IS_PROXY(menu->priv->proxy));
+-    g_return_if_fail(OVIRT_IS_HOST(menu->priv->host));
+ 
+-    menu->priv->cluster = ovirt_host_get_cluster(menu->priv->host);
++    /* If there is no host information, we get cluster from the VM */
++    if (menu->priv->host == NULL) {
++        g_return_if_fail(OVIRT_IS_VM(menu->priv->vm));
++        menu->priv->cluster = ovirt_vm_get_cluster(menu->priv->vm);
++    } else {
++        g_return_if_fail(OVIRT_IS_HOST(menu->priv->host));
++        menu->priv->cluster = ovirt_host_get_cluster(menu->priv->host);
++    }
++
++    if (menu->priv->cluster == NULL) {
++        ovirt_foreign_menu_next_async_step(menu, task, STATE_CLUSTER);
++        return;
++    }
++
+     ovirt_resource_refresh_async(OVIRT_RESOURCE(menu->priv->cluster),
+                                  menu->priv->proxy,
+                                  g_task_get_cancellable(task),
+@@ -880,9 +905,7 @@ static void host_fetched_cb(GObject *source_object,
+     ovirt_resource_refresh_finish(resource, result, &error);
+     if (error != NULL) {
+         g_debug("failed to fetch Host: %s", error->message);
+-        g_task_return_error(task, error);
+-        g_object_unref(task);
+-        return;
++        g_clear_error(&error);
+     }
+ 
+     ovirt_foreign_menu_next_async_step(menu, task, STATE_HOST);
+@@ -897,6 +920,15 @@ static void ovirt_foreign_menu_fetch_host_async(OvirtForeignMenu *menu,
+     g_return_if_fail(OVIRT_IS_VM(menu->priv->vm));
+ 
+     menu->priv->host = ovirt_vm_get_host(menu->priv->vm);
++
++    /* In some cases the VM XML does not include host information, so we just
++     * skip to the next step
++     */
++    if (menu->priv->host == NULL) {
++        ovirt_foreign_menu_next_async_step(menu, task, STATE_HOST);
++        return;
++    }
++
+     ovirt_resource_refresh_async(OVIRT_RESOURCE(menu->priv->host),
+                                  menu->priv->proxy,
+                                  g_task_get_cancellable(task),
+-- 
+2.26.2
+

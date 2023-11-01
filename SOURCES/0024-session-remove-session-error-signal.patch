@@ -1,0 +1,163 @@
+From 8bc91ac80f9c5c7df30f25e35946be0869be3db5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jakub=20Jank=C5=AF?= <jjanku@redhat.com>
+Date: Wed, 10 Feb 2021 10:58:57 +0100
+Subject: [PATCH] session: remove "session-error" signal
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This partially reverts commit de5cd71.
+
+Problem with that commit is, that it practically renders
+the "session-auth-*" signals from vnc session useless.
+That's because gtk-vnc currently emits "vnc-error" before each
+"vnc-auth-*" signal and the error callback in virt-viewer-app.c
+calls virt_viewer_app_disconnected(), which in turn closes
+the session.
+As a consequence, virt-viewer never retries authentication
+with vnc, it simply exits.
+
+Since the last commit, vnc, similarly to spice, emits
+"session-disconnected" with the appropriate error message. Thus
+there's no need to maintain separate "session-error" signal
+for now.
+
+With vnc, this error message is shown to the user in a dialog,
+if the disconnect happened during the init phase.
+"session-auth-*" callbacks create their own dialogs, so
+initialized must be set to TRUE to avoid having a dialog
+displayed twice.
+
+Related:
+https://bugzilla.redhat.com/show_bug.cgi?id=1911224
+
+Signed-off-by: Jakub Janků <jjanku@redhat.com>
+---
+ src/virt-viewer-app.c         | 33 +++++++++++----------------------
+ src/virt-viewer-session-vnc.c |  1 -
+ src/virt-viewer-session.c     |  9 ---------
+ 3 files changed, 11 insertions(+), 32 deletions(-)
+
+diff --git a/src/virt-viewer-app.c b/src/virt-viewer-app.c
+index e42535b..2bb780f 100644
+--- a/src/virt-viewer-app.c
++++ b/src/virt-viewer-app.c
+@@ -70,9 +70,6 @@ void virt_viewer_app_about_delete(GtkWidget *dialog, void *dummy, VirtViewerApp
+ /* Internal methods */
+ static void virt_viewer_app_connected(VirtViewerSession *session,
+                                       VirtViewerApp *self);
+-static void virt_viewer_app_error(VirtViewerSession *session G_GNUC_UNUSED,
+-                                  const gchar *msg,
+-                                  VirtViewerApp *self);
+ static void virt_viewer_app_initialized(VirtViewerSession *session,
+                                         VirtViewerApp *self);
+ static void virt_viewer_app_disconnected(VirtViewerSession *session,
+@@ -745,7 +742,8 @@ static void hide_one_window(gpointer value,
+ {
+     VirtViewerApp* self = VIRT_VIEWER_APP(user_data);
+     VirtViewerAppPrivate *priv = self->priv;
+-    gboolean connect_error = !priv->connected && !priv->cancelled;
++    gboolean connect_error = !priv->cancelled &&
++        !(VIRT_VIEWER_IS_SESSION_VNC(priv->session) ? priv->initialized : priv->connected);
+ 
+     if (connect_error || self->priv->main_window != value)
+         virt_viewer_window_hide(VIRT_VIEWER_WINDOW(value));
+@@ -1342,8 +1340,6 @@ virt_viewer_app_create_session(VirtViewerApp *self, const gchar *type, GError **
+ 
+     g_signal_connect(priv->session, "session-initialized",
+                      G_CALLBACK(virt_viewer_app_initialized), self);
+-    g_signal_connect(priv->session, "session-error",
+-                     G_CALLBACK(virt_viewer_app_error), self);
+     g_signal_connect(priv->session, "session-connected",
+                      G_CALLBACK(virt_viewer_app_connected), self);
+     g_signal_connect(priv->session, "session-disconnected",
+@@ -1721,7 +1717,8 @@ virt_viewer_app_disconnected(VirtViewerSession *session G_GNUC_UNUSED, const gch
+                              VirtViewerApp *self)
+ {
+     VirtViewerAppPrivate *priv = self->priv;
+-    gboolean connect_error = !priv->connected && !priv->cancelled;
++    gboolean connect_error = !priv->cancelled &&
++        !(VIRT_VIEWER_IS_SESSION_VNC(session) ? priv->initialized : priv->connected);
+ 
+     if (!priv->kiosk)
+         virt_viewer_app_hide_all_windows(self);
+@@ -1744,21 +1741,6 @@ virt_viewer_app_disconnected(VirtViewerSession *session G_GNUC_UNUSED, const gch
+     virt_viewer_app_deactivate(self, connect_error);
+ }
+ 
+-static void
+-virt_viewer_app_error(VirtViewerSession *session G_GNUC_UNUSED,
+-                      const gchar *msg,
+-                      VirtViewerApp *self)
+-{
+-    VirtViewerAppPrivate *priv = self->priv;
+-
+-    /* Do not open a dialog if the connection was initialized
+-     * This happens when the VNC server closes the connection */
+-    if (!priv->initialized)
+-        priv->connected = FALSE; /* display error dialog */
+-
+-    virt_viewer_app_disconnected(session, msg, self);
+-}
+-
+ static void virt_viewer_app_cancelled(VirtViewerSession *session,
+                                       VirtViewerApp *self)
+ {
+@@ -1781,15 +1763,22 @@ static void virt_viewer_app_auth_refused(VirtViewerSession *session,
+      * VirtViewerApp needs to schedule a new connection to retry */
+     priv->authretry = (!virt_viewer_session_can_retry_auth(session) &&
+                        !virt_viewer_session_get_file(session));
++
++    /* don't display another dialog in virt_viewer_app_disconnected when using VNC */
++    priv->initialized = TRUE;
+ }
+ 
+ static void virt_viewer_app_auth_unsupported(VirtViewerSession *session G_GNUC_UNUSED,
+                                         const char *msg,
+                                         VirtViewerApp *self)
+ {
++    VirtViewerAppPrivate *priv = virt_viewer_app_get_instance_private(self);
+     virt_viewer_app_simple_message_dialog(self,
+                                           _("Unable to authenticate with remote desktop server: %s"),
+                                           msg);
++
++    /* don't display another dialog in virt_viewer_app_disconnected when using VNC */
++    priv->initialized = TRUE;
+ }
+ 
+ static void virt_viewer_app_usb_failed(VirtViewerSession *session G_GNUC_UNUSED,
+diff --git a/src/virt-viewer-session-vnc.c b/src/virt-viewer-session-vnc.c
+index 7d6dfb2..aa29d00 100644
+--- a/src/virt-viewer-session-vnc.c
++++ b/src/virt-viewer-session-vnc.c
+@@ -136,7 +136,6 @@ virt_viewer_session_vnc_error(VncDisplay *vnc G_GNUC_UNUSED,
+                               VirtViewerSessionVnc *session)
+ {
+     g_warning("vnc-session: got vnc error %s", msg);
+-    g_signal_emit_by_name(session, "session-error", msg);
+     /* "vnc-error" is always followed by "vnc-disconnected",
+      * so save the error for that signal */
+     g_free(session->priv->error_msg);
+diff --git a/src/virt-viewer-session.c b/src/virt-viewer-session.c
+index 639d7a4..4171f3d 100644
+--- a/src/virt-viewer-session.c
++++ b/src/virt-viewer-session.c
+@@ -276,15 +276,6 @@ virt_viewer_session_class_init(VirtViewerSessionClass *class)
+                  G_TYPE_NONE,
+                  0);
+ 
+-    g_signal_new("session-error",
+-                 G_OBJECT_CLASS_TYPE(object_class),
+-                 G_SIGNAL_RUN_FIRST,
+-                 0,
+-                 NULL, NULL,
+-                 g_cclosure_marshal_VOID__STRING,
+-                 G_TYPE_NONE,
+-                 1,
+-                 G_TYPE_STRING);
+     g_signal_new("session-disconnected",
+                  G_OBJECT_CLASS_TYPE(object_class),
+                  G_SIGNAL_RUN_FIRST,
+-- 
+2.29.2
+

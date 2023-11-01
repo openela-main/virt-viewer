@@ -1,0 +1,30 @@
+From e89e82eeb9a917f077720d4821c0e306a6d130d1 Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Tue, 8 Dec 2020 19:50:01 +0200
+Subject: [PATCH 16/19] hotkeys: enable setting zoom hotkeys from command line
+
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ src/virt-viewer-app.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/virt-viewer-app.c b/src/virt-viewer-app.c
+index 3ee5990..8d795ca 100644
+--- a/src/virt-viewer-app.c
++++ b/src/virt-viewer-app.c
+@@ -2511,6 +2511,12 @@ virt_viewer_app_set_hotkeys(VirtViewerApp *self, const gchar *hotkeys_str)
+             status = gtk_accel_map_change_entry("<virt-viewer>/view/toggle-fullscreen", accel_key, accel_mods, TRUE);
+         } else if (g_str_equal(*hotkey, "release-cursor")) {
+             status = gtk_accel_map_change_entry("<virt-viewer>/view/release-cursor", accel_key, accel_mods, TRUE);
++        } else if (g_str_equal(*hotkey, "zoom-reset")) {
++            status = gtk_accel_map_change_entry("<virt-viewer>/view/zoom-reset", accel_key, accel_mods, TRUE);
++        } else if (g_str_equal(*hotkey, "zoom-out")) {
++            status = gtk_accel_map_change_entry("<virt-viewer>/view/zoom-out", accel_key, accel_mods, TRUE);
++        } else if (g_str_equal(*hotkey, "zoom-in")) {
++            status = gtk_accel_map_change_entry("<virt-viewer>/view/zoom-in", accel_key, accel_mods, TRUE);
+         } else if (g_str_equal(*hotkey, "secure-attention")) {
+             status = gtk_accel_map_change_entry("<virt-viewer>/send/secure-attention", accel_key, accel_mods, TRUE);
+         } else if (g_str_equal(*hotkey, "smartcard-insert")) {
+-- 
+2.29.2
+

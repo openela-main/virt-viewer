@@ -1,0 +1,25 @@
+From 8de1e49136599842d52823295c0d3f4b941601de Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Tue, 8 Dec 2020 20:11:23 +0200
+Subject: [PATCH 18/19] tests: hotkeys: add zoom hotkeys
+
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ tests/test-hotkeys.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tests/test-hotkeys.c b/tests/test-hotkeys.c
+index cd2bd88..8275647 100644
+--- a/tests/test-hotkeys.c
++++ b/tests/test-hotkeys.c
+@@ -67,6 +67,7 @@ test_hotkeys_good(void)
+     const gchar *hotkeys[] = {
+         "toggle-fullscreen=shift+f11",
+         "release-cursor=shift+f12,secure-attention=ctrl+shift+b",
++        "zoom-in=shift+f2,zoom-out=shift+f3,zoom-reset=shift+f4",
+         "smartcard-insert=shift+I,smartcard-remove=shift+R",
+     };
+ 
+-- 
+2.29.2
+

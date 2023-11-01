@@ -1,0 +1,80 @@
+From 182fb30ff7cd85873d479b214bebf291aed2eaf1 Mon Sep 17 00:00:00 2001
+From: "Eduardo Lima (Etrunko)" <etrunko@redhat.com>
+Date: Fri, 23 Aug 2019 11:30:32 -0300
+Subject: [PATCH virt-viewer] [DOWNSTREAM] Workaround inconsistency with REST
+ API
+
+The storage domain object returned in this stage does not provide a link
+to the files subcollection. To workaround this problem, we use the id of
+the given storage domain to create a new object but referencing the
+toplevel api, which in turn provides the file collection.
+
+This is meant to be a donwnstream patch only, while this issue is not
+addressed by RHV.
+
+Fixes https://bugzilla.redhat.com/show_bug.cgi?id=1717900
+
+Signed-off-by: Eduardo Lima (Etrunko) <etrunko@redhat.com>
+---
+ src/ovirt-foreign-menu.c | 38 ++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 36 insertions(+), 2 deletions(-)
+
+diff --git a/src/ovirt-foreign-menu.c b/src/ovirt-foreign-menu.c
+index 98ab7b9..a849991 100644
+--- a/src/ovirt-foreign-menu.c
++++ b/src/ovirt-foreign-menu.c
+@@ -686,6 +686,37 @@ static gboolean ovirt_foreign_menu_set_file_collection(OvirtForeignMenu *menu, O
+     return TRUE;
+ }
+ 
++static gboolean set_file_collection_from_toplevel_storage_domain(OvirtForeignMenu *menu, OvirtStorageDomain *domain)
++{
++    gboolean ret = FALSE;
++    GError *error = NULL;
++    OvirtResource *resource = NULL;
++    gchar *href = NULL, *id = NULL;
++
++    g_object_get(domain, "guid", &id, NULL);
++    href = g_strdup_printf("/ovirt-engine/api/storagedomains/%s", id);
++    resource = g_initable_new(OVIRT_TYPE_STORAGE_DOMAIN, NULL, &error, "guid", id, "href", href, NULL);
++    if (error != NULL) {
++        g_warning("Failed to create storage domain with href %s: %s", href, error->message);
++        goto end;
++    }
++
++    ovirt_resource_refresh(resource, menu->priv->proxy, &error);
++    if (error != NULL) {
++        g_warning("Failed to refresh storage domain: %s", error->message);
++        goto end;
++    }
++
++    ret = ovirt_foreign_menu_set_file_collection(menu, ovirt_storage_domain_get_files(OVIRT_STORAGE_DOMAIN(resource)));
++
++end:
++    g_clear_error(&error);
++    g_clear_object(&resource);
++    g_free(id);
++    g_free(href);
++    return ret;
++}
++
+ static void storage_domains_fetched_cb(GObject *source_object,
+                                        GAsyncResult *result,
+                                        gpointer user_data)
+@@ -717,8 +748,11 @@ static void storage_domains_fetched_cb(GObject *source_object,
+             domain_valid = TRUE;
+ 
+         file_collection = ovirt_storage_domain_get_files(domain);
+-        if (!ovirt_foreign_menu_set_file_collection(menu, file_collection))
+-            continue;
++        if (!ovirt_foreign_menu_set_file_collection(menu, file_collection)) {
++            /* Retry with toplevel storage domain */
++            if (!set_file_collection_from_toplevel_storage_domain(menu, domain))
++                continue;
++        }
+ 
+         break; /* There can only be one valid storage domain at a time,
+                   no need to iterate more on the list */
+-- 
+2.26.2
+
