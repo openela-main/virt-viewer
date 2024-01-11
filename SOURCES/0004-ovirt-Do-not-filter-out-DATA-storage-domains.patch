@@ -1,0 +1,38 @@
+From 21b482e6b85df7dca46e1dc8501b0f28ce4570a1 Mon Sep 17 00:00:00 2001
+From: "Eduardo Lima (Etrunko)" <etrunko@redhat.com>
+Date: Fri, 15 May 2020 10:24:08 -0300
+Subject: [PATCH virt-viewer] ovirt: Do not filter out DATA storage domains
+
+Since ovirt 4.2 it is acceptable to have ISO images in storage domains
+of DATA type, while the usage of ISO type is about to be deprecated. The
+code now allow both types of storage domains when looking up for ISO
+images.
+
+https://access.redhat.com/documentation/en-us/red_hat_virtualization/4.2/html/release_notes/deprecated_features_rhv
+https://access.redhat.com/documentation/en-us/red_hat_virtualization/4.4-beta/html/release_notes/deprecated_features_rhv
+
+Fixes: https://bugzilla.redhat.com/show_bug.cgi?id=1835640
+
+Signed-off-by: Eduardo Lima (Etrunko) <etrunko@redhat.com>
+---
+ src/ovirt-foreign-menu.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/ovirt-foreign-menu.c b/src/ovirt-foreign-menu.c
+index dc6ecf4..c31c93f 100644
+--- a/src/ovirt-foreign-menu.c
++++ b/src/ovirt-foreign-menu.c
+@@ -661,8 +661,8 @@ static gboolean storage_domain_validate(OvirtForeignMenu *menu G_GNUC_UNUSED,
+ 
+     g_object_get(domain, "name", &name, "type", &type, "state", &state, NULL);
+ 
+-    if (type != OVIRT_STORAGE_DOMAIN_TYPE_ISO) {
+-        g_debug("Storage domain '%s' type is not ISO", name);
++    if (type != OVIRT_STORAGE_DOMAIN_TYPE_ISO && type != OVIRT_STORAGE_DOMAIN_TYPE_DATA) {
++        g_debug("Storage domain '%s' type is not ISO or DATA", name);
+         ret = FALSE;
+     }
+ 
+-- 
+2.26.2
+

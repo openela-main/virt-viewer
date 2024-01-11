@@ -1,0 +1,70 @@
+From c3a3f23968edceaf097f20450c795c762ec36fc0 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jakub=20Jank=C5=AF?= <jjanku@redhat.com>
+Date: Sun, 20 Dec 2020 12:29:27 +0100
+Subject: [PATCH] disable default grab sequence in kiosk mode
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hotkeys should be disabled in kiosk mode. However, if no
+"release-cursor" hotkey is specified, the default Ctrl+Alt
+grab sequence keeps functioning even in kiosk mode.
+That's because it's based on the spice/vnc functionality instead
+of on the accelerators in virt-viewer.
+
+That's especially problematic with spice, because the grab
+sequence releases both the cursor and the keyboard. Thus the user
+can escape from kiosk mode by pressing Ctrl+Alt followed by
+Alt+Tab, for example.
+
+Related: https://bugzilla.redhat.com/show_bug.cgi?id=1893584
+
+Signed-off-by: Jakub Janků <jjanku@redhat.com>
+---
+ src/virt-viewer-display-spice.c | 6 +++++-
+ src/virt-viewer-display-vnc.c   | 6 +++++-
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/virt-viewer-display-spice.c b/src/virt-viewer-display-spice.c
+index a82422c..799403c 100644
+--- a/src/virt-viewer-display-spice.c
++++ b/src/virt-viewer-display-spice.c
+@@ -238,10 +238,14 @@ enable_accel_changed(VirtViewerApp *app,
+                      VirtViewerDisplaySpice *self)
+ {
+     GtkAccelKey key = {0, 0, 0};
++    gboolean kiosk;
++
+     if (virt_viewer_app_get_enable_accel(app))
+         gtk_accel_map_lookup_entry("<virt-viewer>/view/release-cursor", &key);
+ 
+-    if (key.accel_key || key.accel_mods) {
++    g_object_get(app, "kiosk", &kiosk, NULL);
++
++    if (key.accel_key || key.accel_mods || kiosk) {
+         SpiceGrabSequence *seq = spice_grab_sequence_new(0, NULL);
+         /* disable default grab sequence */
+         spice_display_set_grab_keys(self->priv->display, seq);
+diff --git a/src/virt-viewer-display-vnc.c b/src/virt-viewer-display-vnc.c
+index d38dcac..537173c 100644
+--- a/src/virt-viewer-display-vnc.c
++++ b/src/virt-viewer-display-vnc.c
+@@ -188,10 +188,14 @@ enable_accel_changed(VirtViewerApp *app,
+                      VncDisplay *vnc)
+ {
+     GtkAccelKey key = {0, 0, 0};
++    gboolean kiosk;
++
+     if (virt_viewer_app_get_enable_accel(app))
+         gtk_accel_map_lookup_entry("<virt-viewer>/view/release-cursor", &key);
+ 
+-    if (key.accel_key || key.accel_mods) {
++    g_object_get(app, "kiosk", &kiosk, NULL);
++
++    if (key.accel_key || key.accel_mods || kiosk) {
+         VncGrabSequence *seq = vnc_grab_sequence_new(0, NULL);
+         /* disable default grab sequence */
+         vnc_display_set_grab_keys(vnc, seq);
+-- 
+2.29.2
+

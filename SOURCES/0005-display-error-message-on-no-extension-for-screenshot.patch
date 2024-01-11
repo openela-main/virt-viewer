@@ -1,0 +1,53 @@
+From c6afc28cc9761af3e992eab0ca105a978b83a346 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Julien=20Rop=C3=A9?= <jrope@redhat.com>
+Date: Tue, 9 Jun 2020 14:44:39 +0200
+Subject: [PATCH remote-viewer] Rather than adding a default extension to
+ screenshots, display an error message to make the user add it. This prevents
+ the silent overwriting of the file, and still makes sure the user knows why
+ we don't proceed.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix BZ#1752514
+
+Signed-off-by: Julien Ropé <jrope@redhat.com>
+---
+ src/virt-viewer-window.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/src/virt-viewer-window.c b/src/virt-viewer-window.c
+index 928658f..7ecee21 100644
+--- a/src/virt-viewer-window.c
++++ b/src/virt-viewer-window.c
+@@ -1085,17 +1085,22 @@ virt_viewer_window_menu_file_screenshot(GtkWidget *menu G_GNUC_UNUSED,
+         gtk_file_chooser_set_current_folder(GTK_FILE_CHOOSER (dialog), image_dir);
+     gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER (dialog), _("Screenshot.png"));
+ 
++retry_dialog:
+     if (gtk_dialog_run(GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT) {
+         char *filename;
+         GError *error = NULL;
+ 
+         filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER (dialog));
+         if (g_strrstr(filename, ".") == NULL) {
+-            // no extension provided: add the .png default
+-            char *tmp_filename ;
+-            tmp_filename = g_strdup_printf("%s.png", filename) ;
+-            g_free(filename) ;
+-            filename = tmp_filename ;
++            // no extension provided
++            GtkWidget *msg_dialog ;
++            g_free(filename);
++            msg_dialog = gtk_message_dialog_new (GTK_WINDOW(dialog), GTK_DIALOG_MODAL,
++                                                 GTK_MESSAGE_WARNING, GTK_BUTTONS_CLOSE,
++                                                 _("Please add an extension to the file name"));
++            gtk_dialog_run(GTK_DIALOG(msg_dialog));
++            gtk_widget_destroy(msg_dialog);
++            goto retry_dialog;
+         }
+ 
+         if (!virt_viewer_window_save_screenshot(self, filename, &error)) {
+-- 
+2.26.2
+

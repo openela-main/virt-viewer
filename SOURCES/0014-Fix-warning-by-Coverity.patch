@@ -1,0 +1,69 @@
+From 1573a790da7370f547d542191d530ba8580e5a03 Mon Sep 17 00:00:00 2001
+From: Frediano Ziglio <freddy77@gmail.com>
+Date: Mon, 14 Sep 2020 13:51:15 +0100
+Subject: [PATCH] Fix warning by Coverity
+
+Error: DEADCODE (CWE-561): [#def1]
+virt-viewer-9.0/src/virt-viewer-display-vte.c:164: assignment: Assigning: "scroll" = "NULL".
+virt-viewer-9.0/src/virt-viewer-display-vte.c:188: null: At condition "scroll", the value of "scroll" must be "NULL".
+virt-viewer-9.0/src/virt-viewer-display-vte.c:188: dead_error_condition: The condition "scroll" cannot be true.
+virt-viewer-9.0/src/virt-viewer-display-vte.c:189: dead_error_begin: Execution cannot reach this statement: "gtk_container_add((GtkConta...".
+virt-viewer-9.0/src/virt-viewer-display-vte.c:189: effectively_constant: Local variable "scroll" is assigned only once, to a constant value, making it effectively constant throughout its scope. If this is not the intent, examine the logic to see if there is a missing assignment that would make "scroll" not remain constant.
+
+Reported in https://gitlab.com/virt-viewer/virt-viewer/-/issues/7.
+
+Signed-off-by: Frediano Ziglio <freddy77@gmail.com>
+---
+ src/virt-viewer-display-vte.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/src/virt-viewer-display-vte.c b/src/virt-viewer-display-vte.c
+index ef0d5ac..9e4f734 100644
+--- a/src/virt-viewer-display-vte.c
++++ b/src/virt-viewer-display-vte.c
+@@ -147,7 +147,6 @@ virt_viewer_display_vte_commit(VirtViewerDisplayVte *self,
+ {
+     g_signal_emit_by_name(self, "commit", text, size);
+ }
+-#endif
+ 
+ static void
+ virt_viewer_display_vte_adj_changed(VirtViewerDisplayVte *self,
+@@ -156,12 +155,16 @@ virt_viewer_display_vte_adj_changed(VirtViewerDisplayVte *self,
+     gtk_widget_set_visible(self->priv->scroll,
+         gtk_adjustment_get_upper(adjustment) > gtk_adjustment_get_page_size(adjustment));
+ }
++#endif
+ 
+ GtkWidget *
+ virt_viewer_display_vte_new(VirtViewerSession *session, const char *name)
+ {
+     VirtViewerDisplayVte *self;
+-    GtkWidget *grid, *scroll = NULL, *vte;
++    GtkWidget *grid, *vte;
++#ifdef HAVE_VTE
++    GtkWidget *scroll = NULL;
++#endif
+ 
+     self = g_object_new(VIRT_VIEWER_TYPE_DISPLAY_VTE,
+                         "session", session,
+@@ -185,6 +188,8 @@ virt_viewer_display_vte_new(VirtViewerSession *session, const char *name)
+     grid = gtk_grid_new();
+ 
+     gtk_container_add(GTK_CONTAINER(grid), vte);
++
++#ifdef HAVE_VTE
+     if (scroll) {
+         gtk_container_add(GTK_CONTAINER(grid), scroll);
+         gtk_widget_hide(scroll);
+@@ -192,6 +197,7 @@ virt_viewer_display_vte_new(VirtViewerSession *session, const char *name)
+                                           "changed", G_CALLBACK(virt_viewer_display_vte_adj_changed),
+                                           self, G_CONNECT_SWAPPED);
+     }
++#endif
+ 
+     gtk_container_add(GTK_CONTAINER(self), grid);
+ 
+-- 
+2.28.0
+

@@ -1,0 +1,61 @@
+From ae3e15f851605e5551406412fed00a034fc66f58 Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Tue, 8 Dec 2020 20:12:19 +0200
+Subject: [PATCH 19/19] man: add zoom hotkeys
+
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ man/remote-viewer.pod | 15 ++++++++++++++-
+ man/virt-viewer.pod   |  3 ++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/man/remote-viewer.pod b/man/remote-viewer.pod
+index 73c829f..e820f4b 100644
+--- a/man/remote-viewer.pod
++++ b/man/remote-viewer.pod
+@@ -69,7 +69,8 @@ guest display widget does not have focus.  Any actions specified in B<HOTKEYS>
+ will be effective even when the guest display widget has input focus. The format
+ for B<HOTKEYS> is <action1>=<key1>[+<key2>][,<action2>=<key3>[+<key4>]].
+ Key-names are case-insensitive. Valid actions are: toggle-fullscreen,
+-release-cursor, secure-attention, smartcard-insert and smartcard-remove.  The
++release-cursor, zoom-in, zoom-out, zoom-reset,
++secure-attention, smartcard-insert and  smartcard-remove.  The
+ C<secure-attention> action sends a secure attention sequence (Ctrl+Alt+Del) to
+ the guest. Examples:
+ 
+@@ -224,6 +225,18 @@ Key binding for entering and leaving fullscreen mode. (see L<HOTKEY> for descrip
+ 
+ Key binding for releasing cursor grab. (see L<HOTKEY> for description of expected string)
+ 
++=item C<zoom-in> (hotkey string)
++
++Key binding for zooming in and enlarging client window size. (see L<HOTKEY> for description of expected string)
++
++=item C<zoom-out> (hotkey string)
++
++Key binding for zooming out and reducing client window size. (see L<HOTKEY> for description of expected string)
++
++=item C<zoom-reset> (hotkey string)
++
++Key binding for reseting zoom and client window size. (see L<HOTKEY> for description of expected string)
++
+ =item C<smartcard-insert> (hotkey string)
+ 
+ Key binding for inserting emulated smartcard. (see L<HOTKEY> for description of expected string)
+diff --git a/man/virt-viewer.pod b/man/virt-viewer.pod
+index d55c5be..a42134b 100644
+--- a/man/virt-viewer.pod
++++ b/man/virt-viewer.pod
+@@ -89,7 +89,8 @@ guest display widget does not have focus.  Any actions specified in B<HOTKEYS>
+ will be effective even when the guest display widget has input focus. The format
+ for B<HOTKEYS> is <action1>=<key1>[+<key2>][,<action2>=<key3>[+<key4>]].
+ Key-names are case-insensitive. Valid actions are: toggle-fullscreen,
+-release-cursor, secure-attention, smartcard-insert and smartcard-remove.  The
++release-cursor, zoom-in, zoom-out, zoom-reset,
++secure-attention, smartcard-insert and smartcard-remove.  The
+ C<secure-attention> action sends a secure attention sequence (Ctrl+Alt+Del) to
+ the guest. Examples:
+ 
+-- 
+2.29.2
+

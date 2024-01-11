@@ -1,0 +1,71 @@
+From a40c8f4508e96c29ea5a24042906d5ded90241fb Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Jakub=20Jank=C5=AF?= <jjanku@redhat.com>
+Date: Thu, 3 Dec 2020 13:40:33 +0100
+Subject: [PATCH] windows: fix nonuniform behavior of zoom hotkeys
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If a vv file is used or the hotkeys are customized using the
+--hotkeys cmd option, all hotkeys that are not explicitly
+requested get disabled, this includes the zomm hotkeys.
+
+As a consequence, the labels for zoom actions in the menu
+disappear. However, the user can still perform these actions
+using the keys on the numpad which are handled separately.
+
+To fix it, check that the normal zoom hotkeys are enabled
+before enabling the keypad ones.
+
+Related to: https://bugzilla.redhat.com/show_bug.cgi?id=1791261
+
+Signed-off-by: Jakub Janků <jjanku@redhat.com>
+---
+ src/virt-viewer-window.c | 24 +++++++++++++++---------
+ 1 file changed, 15 insertions(+), 9 deletions(-)
+
+diff --git a/src/virt-viewer-window.c b/src/virt-viewer-window.c
+index eed3086..5647023 100644
+--- a/src/virt-viewer-window.c
++++ b/src/virt-viewer-window.c
+@@ -887,6 +887,7 @@ virt_viewer_window_enable_modifiers(VirtViewerWindow *self)
+     VirtViewerWindowPrivate *priv = self->priv;
+     GSList *accels;
+     guint i;
++    GtkAccelKey key;
+ 
+     if (priv->accel_enabled)
+         return;
+@@ -904,15 +905,20 @@ virt_viewer_window_enable_modifiers(VirtViewerWindow *self)
+                  "gtk-enable-mnemonics", priv->enable_mnemonics_save,
+                  NULL);
+ 
+-    g_action_map_add_action_entries(G_ACTION_MAP(priv->window),
+-                                    keypad_action_entries, G_N_ELEMENTS(keypad_action_entries),
+-                                    self);
+-    for (i = 0; i < G_N_ELEMENTS(keypad_action_entries); i++) {
+-        gchar *detailed_name = g_strdup_printf("win.%s", keypad_action_entries[i].name);
+-        gtk_application_set_accels_for_action(GTK_APPLICATION(priv->app),
+-                                              detailed_name,
+-                                              keypad_action_accels[i]);
+-        g_free(detailed_name);
++    /* if zoom actions using "normal" +/-/0 keys are enabled,
++     * allow the user to use the numpad +/-/0 keys as well */
++    if (gtk_accel_map_lookup_entry("<virt-viewer>/view/zoom-out", &key)
++        && key.accel_key != 0) {
++        g_action_map_add_action_entries(G_ACTION_MAP(priv->window),
++                                        keypad_action_entries, G_N_ELEMENTS(keypad_action_entries),
++                                        self);
++        for (i = 0; i < G_N_ELEMENTS(keypad_action_entries); i++) {
++            gchar *detailed_name = g_strdup_printf("win.%s", keypad_action_entries[i].name);
++            gtk_application_set_accels_for_action(GTK_APPLICATION(priv->app),
++                                                  detailed_name,
++                                                  keypad_action_accels[i]);
++            g_free(detailed_name);
++        }
+     }
+ 
+     priv->accel_enabled = TRUE;
+-- 
+2.29.2
+

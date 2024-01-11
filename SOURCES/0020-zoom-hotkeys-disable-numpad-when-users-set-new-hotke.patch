@@ -1,0 +1,45 @@
+From a0f227c723d424c6f1cf63efa213668e69800e98 Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Sun, 10 Jan 2021 17:05:09 +0200
+Subject: [PATCH] zoom hotkeys: disable numpad when users set new hotkeys
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If a user sets any hotkey, disable numpad hotkeys.
+If a user does not set any hotkey and the default hotkeys
+are enabled, then numpad hotkeys are enabled too.
+
+This is a folloup for commits a40c8f4 and e89e82e + 8cc0667.
+Currently setting (e.g. ctrl [123]) hotkeys for zoom (in/out/reset),
+re-enable the default numpad hotkeys (ctrl [+-0]).
+
+Related to: https://bugzilla.redhat.com/show_bug.cgi?id=1791261
+
+Suggested-by: Jakub Janků <jjanku@redhat.com>
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ src/virt-viewer-window.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/virt-viewer-window.c b/src/virt-viewer-window.c
+index 5647023..448ef74 100644
+--- a/src/virt-viewer-window.c
++++ b/src/virt-viewer-window.c
+@@ -905,9 +905,11 @@ virt_viewer_window_enable_modifiers(VirtViewerWindow *self)
+                  "gtk-enable-mnemonics", priv->enable_mnemonics_save,
+                  NULL);
+ 
+-    /* if zoom actions using "normal" +/-/0 keys are enabled,
++    /* if the user did not set hotkeys and
++     * zoom actions using "normal" +/-/0 keys are enabled,
+      * allow the user to use the numpad +/-/0 keys as well */
+-    if (gtk_accel_map_lookup_entry("<virt-viewer>/view/zoom-out", &key)
++    if (!virt_viewer_app_get_enable_accel(priv->app)
++        && gtk_accel_map_lookup_entry("<virt-viewer>/view/zoom-out", &key)
+         && key.accel_key != 0) {
+         g_action_map_add_action_entries(G_ACTION_MAP(priv->window),
+                                         keypad_action_entries, G_N_ELEMENTS(keypad_action_entries),
+-- 
+2.29.2
+

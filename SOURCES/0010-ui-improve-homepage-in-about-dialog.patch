@@ -1,0 +1,32 @@
+From 671f79bd7d0668fb0c70cd17d09a77482b9f5fbe Mon Sep 17 00:00:00 2001
+From: Pino Toscano <ptoscano@redhat.com>
+Date: Wed, 22 Jul 2020 12:08:25 +0200
+Subject: [PATCH] ui: improve homepage in about dialog
+
+Switch the homepage URL to https, and synchronize the label with the
+URL. Also, do not make the label translatable, as it is pointless (it is
+only a URL).
+
+Signed-off-by: Pino Toscano <ptoscano@redhat.com>
+---
+ src/resources/ui/virt-viewer-about.ui | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/resources/ui/virt-viewer-about.ui b/src/resources/ui/virt-viewer-about.ui
+index 5f6ce70..681590f 100644
+--- a/src/resources/ui/virt-viewer-about.ui
++++ b/src/resources/ui/virt-viewer-about.ui
+@@ -16,8 +16,8 @@
+     <property name="copyright" translatable="yes">Copyright (C) 2007-2012 Daniel P. Berrange
+ Copyright (C) 2007-2014 Red Hat, Inc.</property>
+     <property name="comments" translatable="yes">A remote desktop client built with GTK-VNC, SPICE-GTK and libvirt</property>
+-    <property name="website">http://gitlab.com/virt-viewer/virt-viewer/</property>
+-    <property name="website_label" translatable="yes">gitlab.com/virt-viewer/virt-viewer</property>
++    <property name="website">https://gitlab.com/virt-viewer/virt-viewer</property>
++    <property name="website_label">https://gitlab.com/virt-viewer/virt-viewer</property>
+     <property name="license" translatable="yes">This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+-- 
+2.28.0
+

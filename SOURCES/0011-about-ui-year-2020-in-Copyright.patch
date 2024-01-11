@@ -1,0 +1,28 @@
+From d880ce4a4097d4e7efa1ba1a7fe28147b2e439bc Mon Sep 17 00:00:00 2001
+From: Uri Lublin <uril@redhat.com>
+Date: Tue, 25 Aug 2020 20:10:59 +0300
+Subject: [PATCH] about ui: year 2020 in Copyright
+
+rhbz#1848267
+
+Signed-off-by: Uri Lublin <uril@redhat.com>
+---
+ src/resources/ui/virt-viewer-about.ui | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/resources/ui/virt-viewer-about.ui b/src/resources/ui/virt-viewer-about.ui
+index 681590f..25b2165 100644
+--- a/src/resources/ui/virt-viewer-about.ui
++++ b/src/resources/ui/virt-viewer-about.ui
+@@ -15,7 +15,7 @@
+     <property name="skip_pager_hint">True</property>
+     <property name="program_name">Virtual Machine Viewer</property>
+     <property name="copyright" translatable="yes">Copyright (C) 2007-2012 Daniel P. Berrange
+-Copyright (C) 2007-2014 Red Hat, Inc.</property>
++Copyright (C) 2007-2020 Red Hat, Inc.</property>
+     <property name="comments" translatable="yes">A remote desktop client built with GTK-VNC, SPICE-GTK and libvirt</property>
+     <property name="website">https://gitlab.com/virt-viewer/virt-viewer</property>
+     <property name="website_label">https://gitlab.com/virt-viewer/virt-viewer</property>
+-- 
+2.28.0
+

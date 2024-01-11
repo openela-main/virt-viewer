@@ -1,0 +1,32 @@
+From ae25f6ca6b46e95281186492de5bc0a0fe4974a6 Mon Sep 17 00:00:00 2001
+From: Frediano Ziglio <freddy77@gmail.com>
+Date: Fri, 10 Jul 2020 10:58:35 +0100
+Subject: [PATCH] More specific key accelerator description
+
+The default key accelerator to release mouse if left control and
+left alt but the current description is "Ctrl+Alt", change to
+"Ctrl_L+Alt_L" to avoid misunderstanding.
+
+This solves https://bugzilla.redhat.com/show_bug.cgi?id=1548371
+
+Signed-off-by: Frediano Ziglio <freddy77@gmail.com>
+---
+ src/virt-viewer-window.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/virt-viewer-window.c b/src/virt-viewer-window.c
+index 6c9bc41..614120f 100644
+--- a/src/virt-viewer-window.c
++++ b/src/virt-viewer-window.c
+@@ -1395,7 +1395,7 @@ virt_viewer_window_update_title(VirtViewerWindow *self)
+             g_debug("release-cursor accel key: key=%u, mods=%x, flags=%u", key.accel_key, key.accel_mods, key.accel_flags);
+             label = gtk_accelerator_get_label(key.accel_key, key.accel_mods);
+         } else {
+-            label = g_strdup(_("Ctrl+Alt"));
++            label = g_strdup(_("Ctrl_L+Alt_L"));
+         }
+ 
+         ungrab = g_strdup_printf(_("(Press %s to release pointer)"), label);
+-- 
+2.28.0
+

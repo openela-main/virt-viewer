@@ -1,0 +1,122 @@
+From 522cca5ac1473405d325fce4fef0d6e0343f6257 Mon Sep 17 00:00:00 2001
+From: Frediano Ziglio <freddy77@gmail.com>
+Date: Wed, 10 Jun 2020 13:27:36 +0100
+Subject: [PATCH] virt-viewer-file-transfer-dialog: Reports detailed errors
+
+Instead of showing just a generic error with a list of files group
+files by error and show them.
+
+This solves https://bugzilla.redhat.com/show_bug.cgi?id=1753563
+
+Signed-off-by: Frediano Ziglio <freddy77@gmail.com>
+---
+ src/virt-viewer-file-transfer-dialog.c | 47 +++++++++++++++++++++++---
+ 1 file changed, 43 insertions(+), 4 deletions(-)
+
+diff --git a/src/virt-viewer-file-transfer-dialog.c b/src/virt-viewer-file-transfer-dialog.c
+index b510d8e..975346f 100644
+--- a/src/virt-viewer-file-transfer-dialog.c
++++ b/src/virt-viewer-file-transfer-dialog.c
+@@ -188,6 +188,23 @@ error_dialog_response(GtkDialog *dialog,
+     gtk_widget_destroy(GTK_WIDGET(dialog));
+ }
+ 
++static const gchar*
++file_error_message(GError *err)
++{
++    if (err && err->message) {
++        return err->message;
++    }
++    return _("Unspecified error");
++}
++
++static gint
++compare_file_error(gconstpointer a, gconstpointer b)
++{
++    GError *error_a = g_object_get_data(G_OBJECT(a), "virt-viewer-error");
++    GError *error_b = g_object_get_data(G_OBJECT(b), "virt-viewer-error");
++    return g_strcmp0(file_error_message(error_a), file_error_message(error_b));
++}
++
+ static gboolean hide_transfer_dialog(gpointer data)
+ {
+     VirtViewerFileTransferDialog *self = data;
+@@ -202,10 +219,26 @@ static gboolean hide_transfer_dialog(gpointer data)
+         GString *msg = g_string_new("");
+         GtkWidget *dialog, *files_label, *scrolled_window, *area;
+         GtkRequisition files_label_sz;
++        const gchar *last_error = NULL;
++        const gchar *group_separator = "";
++
++        self->priv->failed = g_slist_sort(self->priv->failed, compare_file_error);
+ 
+         for (sl = self->priv->failed; sl != NULL; sl = g_slist_next(sl)) {
+             SpiceFileTransferTask *failed_task = sl->data;
+             gchar *filename = spice_file_transfer_task_get_filename(failed_task);
++
++            const gchar *error_message =
++                file_error_message(g_object_get_data(G_OBJECT(failed_task), "virt-viewer-error"));
++            if (g_strcmp0(error_message, last_error) != 0) {
++                // add error message
++                gchar *header = g_markup_printf_escaped("%s<b>%s</b>:", group_separator, error_message);
++                g_string_append(msg, header);
++                g_free(header);
++                last_error = error_message;
++                group_separator = "\n\n";
++            }
++
+             if (filename == NULL) {
+                 guint id;
+ 
+@@ -214,15 +247,16 @@ static gboolean hide_transfer_dialog(gpointer data)
+                 filename = g_strdup_printf("(task #%u)", id);
+             }
+ 
+-            g_string_append_printf(msg, "\n%s", filename);
++            gchar *escaped_filename = g_markup_printf_escaped("\n%s", filename);
++            g_string_append(msg, escaped_filename);
++            g_free(escaped_filename);
+             g_free(filename);
+         }
+         g_slist_free_full(self->priv->failed, g_object_unref);
+         self->priv->failed = NULL;
+ 
+         dialog = gtk_message_dialog_new(GTK_WINDOW(self), 0, GTK_MESSAGE_ERROR,
+-                                        GTK_BUTTONS_OK,
+-                                        _("An error caused the following file transfers to fail:"));
++                                        GTK_BUTTONS_OK, NULL);
+         gtk_window_set_title(GTK_WINDOW(dialog), "Transfer error");
+ 
+         scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+@@ -232,8 +266,9 @@ static gboolean hide_transfer_dialog(gpointer data)
+         area = gtk_message_dialog_get_message_area(GTK_MESSAGE_DIALOG(dialog));
+         gtk_container_add(GTK_CONTAINER(area), scrolled_window);
+ 
+-        files_label = gtk_label_new(msg->str + 1); /* skip the initial '\n' */
++        files_label = gtk_label_new(NULL);
+         gtk_label_set_selectable(GTK_LABEL(files_label), TRUE);
++        gtk_label_set_markup(GTK_LABEL(files_label), msg->str);
+         gtk_container_add(GTK_CONTAINER(scrolled_window), files_label);
+ 
+         g_string_free(msg, TRUE);
+@@ -242,6 +277,8 @@ static gboolean hide_transfer_dialog(gpointer data)
+ 
+         /* adjust panel to file_label height */
+         gtk_widget_get_preferred_size(files_label, NULL, &files_label_sz);
++        gtk_scrolled_window_set_min_content_width(GTK_SCROLLED_WINDOW(scrolled_window),
++                                                  MIN(files_label_sz.width, 500));
+         gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled_window),
+                                                    MIN(files_label_sz.height, 170));
+     }
+@@ -256,6 +293,8 @@ static void task_finished(SpiceFileTransferTask *task,
+     VirtViewerFileTransferDialog *self = VIRT_VIEWER_FILE_TRANSFER_DIALOG(user_data);
+ 
+     if (error && !g_error_matches(error, G_IO_ERROR, G_IO_ERROR_CANCELLED)) {
++        g_object_set_data_full(G_OBJECT(task), "virt-viewer-error",
++                               g_error_copy(error), (GDestroyNotify) g_error_free);
+         self->priv->failed = g_slist_prepend(self->priv->failed, g_object_ref(task));
+         g_warning("File transfer task %p failed: %s", task, error->message);
+     }
+-- 
+2.28.0
+

@@ -1,0 +1,99 @@
+From f5936a87795dfdefee10f87672abcf8f9175a7c9 Mon Sep 17 00:00:00 2001
+From: "Eduardo Lima (Etrunko)" <etrunko@redhat.com>
+Date: Mon, 15 Jun 2020 20:53:18 -0300
+Subject: [PATCH virt-viewer] ovirt-foreign-menu: Take into account
+ StorageDomains of type DATA
+
+Now that we support both ISO and DATA storage domain types, we need to
+make sure that the files are listed correctly. In this case we give the
+domains of ISO type the precedence over DATA ones.
+
+This change extends previous commit bbda3aa which made it possible for
+storage domains of type DATA to be considered valid.
+
+Signed-off-by: Eduardo Lima (Etrunko) <etrunko@redhat.com>
+---
+ src/ovirt-foreign-menu.c | 39 ++++++++++++++++++++++-----------------
+ 1 file changed, 22 insertions(+), 17 deletions(-)
+
+diff --git a/src/ovirt-foreign-menu.c b/src/ovirt-foreign-menu.c
+index 3c67f1a..8d02a79 100644
+--- a/src/ovirt-foreign-menu.c
++++ b/src/ovirt-foreign-menu.c
+@@ -734,6 +734,9 @@ static gboolean set_file_collection_from_toplevel_storage_domain(OvirtForeignMen
+     OvirtResource *resource = NULL;
+     gchar *href = NULL, *id = NULL;
+ 
++    if (domain == NULL)
++        return FALSE;
++
+     g_object_get(domain, "guid", &id, NULL);
+     href = g_strdup_printf("/ovirt-engine/api/storagedomains/%s", id);
+     resource = g_initable_new(OVIRT_TYPE_STORAGE_DOMAIN, NULL, &error, "guid", id, "href", href, NULL);
+@@ -767,8 +770,8 @@ static void storage_domains_fetched_cb(GObject *source_object,
+     OvirtForeignMenu *menu = OVIRT_FOREIGN_MENU(g_task_get_source_object(task));
+     OvirtCollection *collection = OVIRT_COLLECTION(source_object);
+     GHashTableIter iter;
+-    OvirtStorageDomain *domain;
+-    gboolean domain_valid = FALSE;
++    OvirtStorageDomain *domain, *valid_domain = NULL;
++    OvirtCollection *file_collection;
+ 
+     ovirt_collection_fetch_finish(collection, result, &error);
+     if (error != NULL) {
+@@ -780,35 +783,37 @@ static void storage_domains_fetched_cb(GObject *source_object,
+ 
+     g_hash_table_iter_init(&iter, ovirt_collection_get_resources(collection));
+     while (g_hash_table_iter_next(&iter, NULL, (gpointer *)&domain)) {
+-        OvirtCollection *file_collection;
+-
+         if (!storage_domain_validate(menu, domain))
+             continue;
+ 
+-        if (!domain_valid)
+-            domain_valid = TRUE;
++        /* Storage domain of type ISO has precedence over type DATA */
++        if (valid_domain != NULL) {
++            OvirtStorageDomainType domain_type, valid_type;
++            g_object_get(domain, "type", &domain_type, NULL);
++            g_object_get(valid_domain, "type", &valid_type, NULL);
+ 
+-        file_collection = storage_domain_get_files(domain);
+-        if (!ovirt_foreign_menu_set_file_collection(menu, file_collection)) {
+-            /* Retry with toplevel storage domain */
+-            if (!set_file_collection_from_toplevel_storage_domain(menu, domain))
+-                continue;
++            if (domain_type > valid_type)
++                valid_domain = domain;
++
++            continue;
+         }
+ 
+-        break; /* There can only be one valid storage domain at a time,
+-                  no need to iterate more on the list */
++        valid_domain = domain;
+     }
+ 
+-    if (menu->priv->files != NULL) {
+-        ovirt_foreign_menu_next_async_step(menu, task, STATE_STORAGE_DOMAIN);
+-    } else {
+-        const char *msg = domain_valid ? "Could not find ISO file collection"
++    file_collection = storage_domain_get_files(valid_domain);
++    if (!ovirt_foreign_menu_set_file_collection(menu, file_collection) &&
++        !set_file_collection_from_toplevel_storage_domain(menu, valid_domain)) { /* Retry with toplevel storage domain */
++        const char *msg = valid_domain ? "Could not find ISO file collection"
+                                        : "Could not find valid ISO storage domain";
+ 
+         g_debug("%s", msg);
+         g_task_return_new_error(task, OVIRT_ERROR, OVIRT_ERROR_FAILED, "%s", msg);
+         g_object_unref(task);
++        return;
+     }
++
++    ovirt_foreign_menu_next_async_step(menu, task, STATE_STORAGE_DOMAIN);
+ }
+ 
+ 
+-- 
+2.26.2
+
